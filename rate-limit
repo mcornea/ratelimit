@@ -1,0 +1,42 @@
+#!/bin/bash
+if [ -z "$1" ]
+    then echo "Usage:    add : rate-limit add src_ip proto dst_port req_no"
+         echo "          list : rate-limit list"
+         echo "          del : rate-limit del src_ip"
+         echo "          ban : rate-limit ban src_ip"
+    else
+        if [ $1 = "list" ]
+            then
+                for i in `iptables -nL INPUT  | grep hit_count | grep -v Chain | awk {'print $4'}`; do  [[ -z $i ]] || echo "$i is rate limited with `iptables -nL INPUT  | grep hit_count | grep -v Chain | awk {'print $15'}` `iptables -nL INPUT  | grep hit_count | grep -v Chain | awk {'print $6'}` connections on port `iptables -nL INPUT  | grep hit_count | grep -v Chain | awk {'print $7'} | awk -F ':' {'print $2'}` per `iptables -nL INPUT  | grep hit_count | grep -v Chain | awk {'print $13'}` second";done;
+                for j in `iptables -nL INPUT  | grep -v hit_count | grep DROP | grep -v Chain | awk {'print $4'}`; do [[ -z $j ]] || echo "$j is banned ";done;
+        else if [ $1 = "del" ]
+            then
+                iptables --line-numbers -nL INPUT  | grep $2 
+                while [ $? -ne 1 ]; do
+                iptables --line-numbers -nL INPUT  | grep $2 | head -n1 | awk {'print $1'} | xargs -I {} iptables -D INPUT  {}
+                iptables --line-numbers -nL INPUT  | grep $2 >> /dev/null
+                done;
+        else if [ $1 = "add" ]
+            then
+                    iptables -nL INPUT  | grep DROP | grep -v Chain | awk {'print $4'} | grep $2 >> /dev/null
+                    if [ $? = 0 ] 
+                        then echo "$2 is already banned or rate limited" 
+                        exit 1
+                    else
+                        iptables -I INPUT -s $2 -p $3 --dport $4 -m state --state NEW -m recent --set
+                        iptables -I INPUT -s $2 -p $3 --dport $4 -m state --state NEW -m recent --update --seconds 1 --hitcount $5 -j DROP
+                    fi
+        else if [ $1 = "ban" ]
+            then
+                    iptables -nL INPUT  | grep DROP | grep -v Chain | awk {'print $4'} | grep $2 >> /dev/null
+                    if [ $? = 0 ] 
+                        then echo "$2 is already banned or rate limited" 
+                        exit 1
+                    else
+                        iptables -I INPUT -s $2 -j DROP
+                    fi
+            fi
+            fi
+            fi
+        fi
+fi
